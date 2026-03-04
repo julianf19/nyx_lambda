@@ -488,6 +488,8 @@ def loadConfig():
     lambdasht = {}
     files = []
     common = {}
+    # for GLOBAL CODE
+    global_code = ""
 
     regex_fn = r"(^ *)def (\w+)\(.*?\):"
 
@@ -495,6 +497,23 @@ def loadConfig():
         for file in f:
             if file.endswith(".ipynb") and not "checkpoint" in file:
                 files.append(os.path.join(r, file))
+
+    # LOAD GLOBAL CODE
+    for f in files:
+        try:
+            with open(f, "r") as content_file:
+                content = content_file.read()
+                jsoncontent = json.loads(content)
+
+                for cell in jsoncontent["cells"]:
+                    if cell["cell_type"] == "code":
+                        cell["source"] = [_ for _ in cell["source"] if _ != "\n"]
+
+                        if len(cell["source"]) > 0:
+                            if "#@GLOBAL" in cell["source"][0]:
+                                global_code += "".join(cell["source"]) + "\n"
+        except Exception as e:
+            logger.error(f"Cannot pass LOAD GLOBAL CODE Error reading file {f}: {e}")
 
     # LOAD COMMON
     for f in files:
@@ -581,8 +600,10 @@ def loadConfig():
 
                         if function is not None:
                             newcode = "".join(cell["source"])
+                            # Add global code
+                            context_code = global_code + "\n" + common.get(f, "")
                             newcode, realfunction = computeNewCode(
-                                f, newcode, common.get(f, "")
+                                f, newcode, context_code
                             )
                             try:
                                 exec(newcode)
@@ -724,7 +745,6 @@ def checkIfRequirementsChanged():
         elif os.path.getmtime(curf) == requirementstime:
             return False
     else:
-
         logger.info("FIRST RUN")
         print("path: ", path)
         f = open(path + "/firstrun.txt", "a+")
@@ -1039,7 +1059,7 @@ curconfig = ""
 lambdas = []
 lambdasht = {}
 lambdaschanged = {}
-path="./notebooks"
+path = "./notebooks"
 requirementstime = 0
 
 es = None
@@ -1079,7 +1099,7 @@ if __name__ == "__main__":
     try:
         os.mkdir(path + "/inputs")
     except:
-        logger.info("./inputs already exists")
+        logger.info("/inputs already exists")
 
     if checkIfRequirementsChanged():
         logger.info(">>>>>>> Requirements changed at startup...QUITTING ")
